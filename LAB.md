@@ -73,6 +73,9 @@ The starter ships these files (already working):
     ├── main.tsx
     ├── index.css
     └── setupTests.ts
+tests/
+└── smoke/
+    └── site.smoke.test.ts  # Vitest suite — runs against the live deployed URL
 ```
 
 You do **not** need to modify any source files. Your work is in `.github/workflows/` only.
@@ -141,9 +144,9 @@ The CD workflow has **two jobs** — `deploy` and `smoke-test`.
 **`smoke-test` job:**
 
 - [ ] Declared with `needs: deploy` so it only runs after a successful deploy
-- [ ] Probes the live S3 website URL with `curl` (use retries — see hints)
-- [ ] Asserts HTTP 200 (`curl -fsS` fails the step on non-2xx)
-- [ ] Grep-checks the response body contains a known string from `index.html` (e.g. `Lab 14`)
+- [ ] Checks out the repo, sets up Node 20 (with npm cache), and runs `npm ci`
+- [ ] Runs the dedicated smoke suite via `npm run smoke`, with the live site URL passed in the `SITE_URL` env var (built as `http://<S3_BUCKET>.s3-website-<AWS_REGION>.amazonaws.com`)
+- [ ] **Do not** inline `curl`+`grep` in shell — the project ships a real Vitest suite under `tests/smoke/`. Your job is to execute it, not reimplement it. The suite asserts: HTTP 200, `text/html` content-type, expected `<title>`, root mount node, and that the linked JS/CSS bundles are reachable.
 
 **Pinning rule (applies to both files):**
 
@@ -186,7 +189,7 @@ You're done when:
 - `aws s3 sync --delete` removes files in the bucket that are not in `dist/`. That is what you want for a SPA — but think about why before you copy it.
 - For SPAs on S3 static hosting, the website's **error document** should be `index.html` so client-side routes resolve. The bucket has already been configured this way for you.
 - The `aws` CLI is preinstalled on `ubuntu-latest` runners. You do not need a separate setup step after `configure-aws-credentials`.
-- For the smoke test, build the URL as `http://<S3_BUCKET>.s3-website-<AWS_REGION>.amazonaws.com`. Use `curl -fsS --retry 5 --retry-delay 3 --retry-connrefused` so the probe is resilient to S3's brief eventual-consistency window right after a sync. `grep -q "<expected string>"` is enough to assert the body.
+- For the smoke test, build the URL as `http://<S3_BUCKET>.s3-website-<AWS_REGION>.amazonaws.com` and pass it via `SITE_URL` to `npm run smoke`. The suite under `tests/smoke/` already handles retry/backoff for S3's brief eventual-consistency window. You can run it locally too: `SITE_URL=http://... npm run smoke`.
 
 ---
 
@@ -211,6 +214,7 @@ You're done when:
 | `NoSuchBucket` | `S3_BUCKET` secret value is wrong, or bucket is in a different region than `AWS_REGION` |
 | Smoke test fails with 404 | Sync ran against wrong bucket, or `aws s3 sync` source path is wrong (must be `./dist`, not `.`) |
 | Smoke test fails with timeout | Static website hosting not enabled on the bucket — instructor problem, raise it |
+| `SITE_URL env var is required` | Smoke job did not pass `SITE_URL` to `npm run smoke` — check the `env:` block on the step |
 | Workflow doesn't trigger | Wrong `on:` block — recheck `pull_request: branches: [main]` for CI and `push: branches: [main]` for CD |
 
 ---
