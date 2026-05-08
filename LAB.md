@@ -68,6 +68,7 @@ You must create **two** workflow files under `.github/workflows/`.
 - [ ] Configures AWS credentials with `aws-actions/configure-aws-credentials@v4` using the repository secrets `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and `AWS_REGION`
 - [ ] Syncs `dist/` to the bucket named in secret `S3_BUCKET` using `aws s3 sync ./dist s3://$S3_BUCKET --delete`
 - [ ] All third-party actions are pinned to a major version tag (`@v4`) **or** a full commit SHA — no `@main`, `@master`, or unpinned
+- [ ] After the sync step, a **post-deploy smoke test** job runs that probes the public site URL with `curl`, asserts HTTP 200, and grep-checks that the response body contains a known string from `index.html` (e.g. `Lab 14`). The job must `needs: deploy` so it only runs after a successful deploy.
 
 When the workflow finishes, your site must be reachable at:
 
@@ -103,6 +104,7 @@ The instructor will give you AWS credentials with **least privilege** (only `s3:
 - `aws s3 sync --delete` removes files in the bucket that are not in `dist/`. That is what you want for a SPA — but think about why before you copy it.
 - For SPAs on S3 static hosting, set the website's **error document** to `index.html` so client-side routes resolve. The bucket has already been configured this way for you, but keep it in mind for future labs.
 - The `aws` CLI is preinstalled on `ubuntu-latest` runners. You do not need a separate setup step after `configure-aws-credentials`.
+- For the smoke test, the S3 website URL is `http://<S3_BUCKET>.s3-website-<AWS_REGION>.amazonaws.com`. Use `curl -fsS --retry 5 --retry-delay 3 --retry-connrefused` so the probe is resilient to S3's brief eventual-consistency window right after a sync. `grep -q` is enough to assert the body contains an expected string.
 
 ## Best-practice checklist (graded informally)
 
